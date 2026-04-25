@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Pong Móvil + PC | Responsive con controles táctiles</title>
+    <style>
+        * {
+            user-select: none;
+            touch-action: manipulation;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: radial-gradient(circle at 20% 30%, #0a0f1e, #03060c);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', 'VT323', 'Monaco', monospace;
+            margin: 0;
+            padding: 16px;
+        }
+
+        /* contenedor principal responsivo */
+        .game-wrapper {
+            max-width: 1000px;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 36px;
+            padding: 16px 12px 20px 12px;
+            backdrop-filter: blur(3px);
+            box-shadow: 0 20px 35px rgba(0,0,0,0.6), inset 0 0 20px rgba(0,255,255,0.2);
+            border: 1px solid cyan;
+        }
+
+        /* canvas responsivo: mantiene proporción 800/450 ≈ 16:9 */
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+        canvas {
+            width: 100%;
+            height: auto;
+            background: #010108;
+            border-radius: 24px;
+            box-shadow: 0 0 0 2px #0ff3, 0 10px 25px black;
+            cursor: none;
+            touch-action: none;  /* evita scroll/pinch en canvas */
+        }
+
+        /* panel superior */
+        .info-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 16px 8px 10px 8px;
+        }
+        .score-board {
+            display: flex;
+            gap: 30px;
+            background: #0a0f1fcc;
+            backdrop-filter: blur(8px);
+            padding: 6px 28px;
+            border-radius: 60px;
+            border: 1px solid cyan;
+            box-shadow: 0 0 8px cyan;
+        }
+        .score {
+            text-align: center;
+            font-size: 2.2rem;
+            font-weight: bold;
+            letter-spacing: 3px;
+            color: #0ff;
+            text-shadow: 0 0 6px #0ff;
+        }
+        .score span {
+            font-size: 0.7rem;
+            display: block;
+            color: #aaf;
+            letter-spacing: 1px;
+        }
+        button {
+            background: #11151f;
+            border: 2px solid #0ff;
+            color: #0ff;
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 1rem;
+            padding: 8px 18px;
+            border-radius: 40px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 0 5px #0ff8;
+            touch-action: manipulation;
+        }
+        button:active {
+            transform: scale(0.96);
+            background: #0ff3;
+        }
+        .mode-toggle {
+            background: #1e2a3a;
+            border-color: #ffaa55;
+            color: #ffcc88;
+        }
+
+        /* controles táctiles (solo visibles en modo táctil) */
+        .touch-controls {
+            display: none;
+            justify-content: center;
+            gap: 35px;
+            margin-top: 20px;
+            margin-bottom: 8px;
+        }
+        .touch-controls.visible {
+            display: flex;
+        }
+        .ctrl-btn {
+            background: #11161fcc;
+            backdrop-filter: blur(8px);
+            border: 2px solid cyan;
+            color: #0ff;
+            font-size: 2.8rem;
+            font-weight: bold;
+            width: 80px;
+            padding: 15px 0;
+            border-radius: 60px;
+            text-align: center;
+            box-shadow: 0 0 12px cyan;
+            transition: 0.05s linear;
+            font-family: monospace;
+            touch-action: manipulation;
+            cursor: pointer;
+        }
+        .ctrl-btn:active {
+            background: #0ff4;
+            transform: scale(0.94);
+            color: white;
+        }
+        .pause-btn {
+            background: #2a1e2a;
+            border-color: #ff66aa;
+            color: #ffaacc;
+            font-size: 1.2rem;
+            width: auto;
+            padding: 15px 28px;
+        }
+        .reset-btn {
+            background: #1f2a1a;
+            border-color: #88ff88;
+            color: #bfffaa;
+        }
+        .control-group {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .legend {
+            font-size: 0.7rem;
+            color: #8dd0ff;
+            background: #010014aa;
+            padding: 4px 12px;
+            border-radius: 50px;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.65rem;
+            margin-top: 15px;
+            color: #4f6f8f;
+        }
+        @media (max-width: 650px) {
+            .score-board { gap: 18px; padding: 4px 20px; }
+            .score { font-size: 1.8rem; }
+            .ctrl-btn { width: 70px; font-size: 2.2rem; padding: 12px 0; }
+            button { padding: 6px 14px; font-size: 0.85rem; }
+        }
+        @media (max-width: 480px) {
+            .ctrl-btn { width: 65px; font-size: 2rem; }
+            .control-group { gap: 12px; }
+        }
+        .pause-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #000c;
+            color: #ffd966;
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.3rem;
+            backdrop-filter: blur(6px);
+            border: 1px solid gold;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .canvas-container {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+<div class="game-wrapper">
+    <div class="canvas-container" id="canvasContainer">
+        <canvas id="pongCanvas" width="800" height="450"></canvas>
+        <!-- texto de pausa overlay (se muestra dinámicamente) -->
+        <div id="pauseMessage" class="pause-overlay" style="display: none;">⏸ PAUSA</div>
+    </div>
+
+    <div class="info-panel">
+        <div class="score-board">
+            <div class="score"><span>JUGADOR</span><span id="playerScore">0</span></div>
+            <div class="score"><span>IA</span><span id="aiScore">0</span></div>
+        </div>
+        <div class="control-group">
+            <button id="resetButton" class="reset-btn">⟳ REINICIAR</button>
+            <button id="pauseGameBtn" class="pause-btn">⏸ PAUSA</button>
+            <button id="toggleTouchBtn" class="mode-toggle">📱 MODO TÁCTIL</button>
+        </div>
+    </div>
+
+    <!-- Botones táctiles (arriba / abajo) -->
+    <div id="touchControls" class="touch-controls">
+        <button id="touchUpBtn" class="ctrl-btn">▲</button>
+        <button id="touchDownBtn" class="ctrl-btn">▼</button>
+        <div class="legend">⬆️ ⬇️ Mueve tu paleta</div>
+    </div>
+    <footer>🎮 Móvil: usa botones ▲▼ | PC: mueve el mouse → controla la paleta izquierda</footer>
+</div>
+
+<script>
+    (function(){
+        // ---------- CONFIGURACIÓN LÓGICA DEL JUEGO (tamaño fijo 800x450) ----------
+        const CANVAS_W = 800;
+        const CANVAS_H = 450;
+        const canvas = document.getElementById('pongCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = CANVAS_W;
+        canvas.height = CANVAS_H;
+
+        // Parámetros de paletas (escalados para 800x450)
+        const PADDLE_W = 10;
+        const PADDLE_H = 80;
+        const PADDLE_SPEED = 6;       // velocidad para botones táctiles (píxeles/frame)
+        
+        // Pelota
+        const BALL_SIZE = 8;   // diámetro
+        let ball = {
+            x: CANVAS_W/2,
+            y: CANVAS_H/2,
+            dx: 3.8,
+            dy: 2.6,
+            radius: BALL_SIZE/2
+        };
+
+        let leftPaddle = { x: 20, y: CANVAS_H/2 - PADDLE_H/2, w: PADDLE_W, h: PADDLE_H };
+        let rightPaddle = { x: CANVAS_W - 20 - PADDLE_W, y: CANVAS_H/2 - PADDLE_H/2, w: PADDLE_W, h: PADDLE_H };
+
+        let playerScore = 0;
+        let aiScore = 0;
+
+        // Estados de juego
+        let waitingForServe = false;
+        let serveTimeout = null;
+        let lastScoredSide = null;
+        
+        // Velocidad / física
+        const BASE_SPEED = 3.9;
+        const SPEED_INCREASE = 1.022;
+        const MAX_SPEED = 8.2;
+        let collisionCooldown = false;
+
+        // ---------- PAUSA ----------
+        let isPaused = false;
+        
+        // ---------- MODO TÁCTIL / MOUSE ----------
+        let touchMode = false;          // si es true, se muestran botones táctiles y se ignora el mouse
+        let touchUpActive = false;
+        let touchDownActive = false;
+        
+        // bandera para detectar si el dispositivo soporta táctil (por defecto se activa modo táctil en móviles)
+        const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        
+        // elementos DOM
+        const playerScoreSpan = document.getElementById('playerScore');
+        const aiScoreSpan = document.getElementById('aiScore');
+        const resetBtn = document.getElementById('resetButton');
+        const pauseGameBtn = document.getElementById('pauseGameBtn');
+        const toggleTouchBtn = document.getElementById('toggleTouchBtn');
+        const touchControlsDiv = document.getElementById('touchControls');
+        const touchUpBtn = document.getElementById('touchUpBtn');
+        const touchDownBtn = document.getElementById('touchDownBtn');
+        const pauseMessageDiv = document.getElementById('pauseMessage');
+
+        // IA velocidad
+        const AI_SPEED = 5.2;
+        
+        // ---------- funciones auxiliares ----------
+        function updateScoreUI() {
+            playerScoreSpan.innerText = playerScore;
+            aiScoreSpan.innerText = aiScore;
+        }
+        
+        function clampPaddle(paddle) {
+            if(paddle.y < 0) paddle.y = 0;
+            if(paddle.y + paddle.h > CANVAS_H) paddle.y = CANVAS_H - paddle.h;
+        }
+        
+        // Reset completo (marcadores, posiciones, pelota)
+        function fullResetGame() {
+            if(serveTimeout) clearTimeout(serveTimeout);
+            waitingForServe = false;
+            isPaused = false;
+            pauseMessageDiv.style.display = 'none';
+            
+            playerScore = 0;
+            aiScore = 0;
+            updateScoreUI();
+            
+            leftPaddle.y = CANVAS_H/2 - PADDLE_H/2;
+            rightPaddle.y = CANVAS_H/2 - PADDLE_H/2;
+            
+            ball.x = CANVAS_W/2;
+            ball.y = CANVAS_H/2;
+            let randomDy = (Math.random() * 5) - 2.5;
+            ball.dx = BASE_SPEED;
+            ball.dy = randomDy !== 0 ? randomDy : 2.2;
+            if(Math.abs(ball.dy) < 1.2) ball.dy = ball.dy > 0 ? 1.8 : -1.8;
+            const mag = Math.hypot(ball.dx, ball.dy);
+            if(mag > 0) {
+                ball.dx = (ball.dx / mag) * BASE_SPEED;
+                ball.dy = (ball.dy / mag) * BASE_SPEED;
+            }
+            lastScoredSide = null;
+            collisionCooldown = false;
+        }
+        
+        function serveBall(directionSign) {
+            ball.x = CANVAS_W/2;
+            ball.y = CANVAS_H/2;
+            let newDx = BASE_SPEED * directionSign;
+            let newDy = (Math.random() * 5.6) - 2.8;
+            if(Math.abs(newDy) < 0.8) newDy = newDy > 0 ? 1.4 : -1.4;
+            ball.dx = newDx;
+            ball.dy = newDy;
+            const mag = Math.hypot(ball.dx, ball.dy);
+            if(mag > 0.01) {
+                ball.dx = (ball.dx / mag) * BASE_SPEED;
+                ball.dy = (ball.dy / mag) * BASE_SPEED;
+            }
+            waitingForServe = false;
+            collisionCooldown = false;
+            if(serveTimeout) { clearTimeout(serveTimeout); serveTimeout = null; }
+        }
+        
+        function handleScore(side) {
+            if(waitingForServe) return;
+            if(side === 'player') {
+                playerScore++;
+                updateScoreUI();
+                lastScoredSide = 'player';
+            } else {
+                aiScore++;
+                updateScoreUI();
+                lastScoredSide = 'ai';
+            }
+            waitingForServe = true;
+            if(serveTimeout) clearTimeout(serveTimeout);
+            serveTimeout = setTimeout(() => {
+                let direction = (lastScoredSide === 'ai') ? -1 : 1;
+                serveBall(direction);
+                serveTimeout = null;
+            }, 800);
+        }
+        
+        // colisiones con efecto angular y aumento de velocidad
+        function handlePaddleCollision(paddle, isLeftPaddleFlag) {
+            const ballLeft = ball.x - ball.radius;
+            const ballRight = ball.x + ball.radius;
+            const ballTop = ball.y - ball.radius;
+            const ballBottom = ball.y + ball.radius;
+            const paddleLeft = paddle.x;
+            const paddleRight = paddle.x + paddle.w;
+            const paddleTop = paddle.y;
+            const paddleBottom = paddle.y + paddle.h;
+            
+            if(ballRight > paddleLeft && ballLeft < paddleRight && ballBottom > paddleTop && ballTop < paddleBottom) {
+                if(collisionCooldown) return false;
+                collisionCooldown = true;
+                
+                const hitPos = (ball.y - (paddle.y + paddle.h/2)) / (paddle.h/2);
+                const angleFactor = Math.min(Math.max(hitPos, -0.85), 0.85) * 0.65;
+                ball.dx = -ball.dx;
+                let newDy = ball.dy + angleFactor * 3.2;
+                newDy = Math.min(Math.max(newDy, -6.2), 6.2);
+                ball.dy = newDy;
+                
+                if(isLeftPaddleFlag) {
+                    ball.x = paddle.x + paddle.w + ball.radius + 0.5;
+                } else {
+                    ball.x = paddle.x - ball.radius - 0.5;
+                }
+                let currentSpeed = Math.hypot(ball.dx, ball.dy);
+                let newSpeed = Math.min(currentSpeed * SPEED_INCREASE, MAX_SPEED);
+                if(currentSpeed > 0.01) {
+                    ball.dx = (ball.dx / currentSpeed) * newSpeed;
+                    ball.dy = (ball.dy / currentSpeed) * newSpeed;
+                }
+                return true;
+            }
+            return false;
+        }
+        
+        // IA (paleta derecha)
+        function updateAI() {
+            if(isPaused) return;
+            const targetY = ball.y - (rightPaddle.h/2);
+            const diff = targetY - rightPaddle.y;
+            let move = 0;
+            if(Math.abs(diff) > 2) {
+                move = diff > 0 ? AI_SPEED : -AI_SPEED;
+                if(Math.abs(diff) < AI_SPEED) move = diff;
+            }
+            rightPaddle.y += move;
+            clampPaddle(rightPaddle);
+        }
+        
+        // Movimiento de la paleta izquierda por mouse (solo si NO está en modo táctil)
+        function handleMouseMove(e) {
+            if(touchMode) return;  // modo táctil ignora ratón
+            if(isPaused) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleY = CANVAS_H / rect.height;
+            let y = (e.clientY - rect.top) * scaleY;
+            y = Math.min(Math.max(y, 0), CANVAS_H);
+            leftPaddle.y = y - leftPaddle.h/2;
+            clampPaddle(leftPaddle);
+        }
+        
+        // Movimiento táctil mediante flags (se llama en cada frame)
+        function updateTouchPaddle() {
+            if(!touchMode) return;
+            if(isPaused) return;
+            let move = 0;
+            if(touchUpActive) move = -PADDLE_SPEED;
+            if(touchDownActive) move = PADDLE_SPEED;
+            if(move !== 0) {
+                leftPaddle.y += move;
+                clampPaddle(leftPaddle);
+            }
+        }
+        
+        // actualización física de la pelota
+        function updateBall() {
+            if(isPaused) return;
+            if(waitingForServe) return;
+            
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+            
+            // bordes superior/inferior
+            if(ball.y - ball.radius <= 0) {
+                ball.y = ball.radius + 1;
+                ball.dy = -ball.dy;
+                collisionCooldown = false;
+            }
+            if(ball.y + ball.radius >= CANVAS_H) {
+                ball.y = CANVAS_H - ball.radius - 1;
+                ball.dy = -ball.dy;
+                collisionCooldown = false;
+            }
+            
+            let collided = false;
+            if(handlePaddleCollision(leftPaddle, true)) collided = true;
+            if(handlePaddleCollision(rightPaddle, false)) collided = true;
+            if(!collided) collisionCooldown = false;
+            else setTimeout(() => { collisionCooldown = false; }, 25);
+            
+            // goles
+            if(ball.x + ball.radius < 0) {
+                handleScore('ai');
+                return;
+            }
+            if(ball.x - ball.radius > CANVAS_W) {
+                handleScore('player');
+                return;
+            }
+        }
+        
+        // ---------- DIBUJO (estilo retro mejorado) ----------
+        function draw() {
+            ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+            ctx.fillStyle = "#010006";
+            ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+            
+            // Línea central
+            ctx.beginPath();
+            ctx.setLineDash([12, 22]);
+            ctx.strokeStyle = "#0ff88a";
+            ctx.lineWidth = 2.5;
+            ctx.moveTo(CANVAS_W/2, 0);
+            ctx.lineTo(CANVAS_W/2, CANVAS_H);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Circulo central
+            ctx.beginPath();
+            ctx.arc(CANVAS_W/2, CANVAS_H/2, 32, 0, Math.PI*2);
+            ctx.strokeStyle = "cyan";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            // Sombras y paletas
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = "#0ff";
+            // Paleta izquierda
+            ctx.fillStyle = "#eef5ff";
+            ctx.fillRect(leftPaddle.x, leftPaddle.y, leftPaddle.w, leftPaddle.h);
+            ctx.fillStyle = "#4effff";
+            ctx.fillRect(leftPaddle.x+2, leftPaddle.y+4, leftPaddle.w-4, leftPaddle.h-8);
+            // Paleta derecha
+            ctx.fillStyle = "#f0aaff";
+            ctx.fillRect(rightPaddle.x, rightPaddle.y, rightPaddle.w, rightPaddle.h);
+            ctx.fillStyle = "#ff99ff";
+            ctx.fillRect(rightPaddle.x+2, rightPaddle.y+4, rightPaddle.w-4, rightPaddle.h-8);
+            
+            // Pelota
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius-1, 0, Math.PI*2);
+            ctx.fillStyle = "#ffffc0";
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius-2, 0, Math.PI*2);
+            ctx.fillStyle = "#ffdd66";
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // Textos decorativos
+            ctx.font = "bold 34px 'Courier New'";
+            ctx.fillStyle = "#0aefef44";
+            ctx.fillText(playerScore, CANVAS_W*0.25 - 25, 55);
+            ctx.fillStyle = "#ef9eff44";
+            ctx.fillText(aiScore, CANVAS_W*0.75 - 20, 55);
+            
+            if(waitingForServe && !isPaused) {
+                ctx.font = "bold 18px monospace";
+                ctx.fillStyle = "#ffdd88";
+                ctx.shadowBlur = 4;
+                ctx.fillText(">>> SERVIDOR <<<", CANVAS_W/2-95, CANVAS_H-28);
+                ctx.font = "12px monospace";
+                ctx.fillStyle = "#aaffdd";
+                ctx.fillText("preparando...", CANVAS_W/2-48, CANVAS_H-12);
+                ctx.shadowBlur = 0;
+            }
+            
+            if(isPaused) {
+                ctx.font = "bold 28px monospace";
+                ctx.fillStyle = "#ffaa66";
+                ctx.shadowBlur = 0;
+                ctx.fillText("⏸ PAUSA", CANVAS_W/2-65, CANVAS_H/2);
+            }
+        }
+        
+        // ---------- BUCLE PRINCIPAL ----------
+        function gameLoop() {
+            if(!isPaused) {
+                updateAI();
+                updateTouchPaddle();    // mueve paleta por botones táctiles si está activo
+                updateBall();
+            }
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // ---------- MANEJO DE EVENTOS TÁCTILES (botones con presión continua) ----------
+        function attachTouchButton(btn, onTouchStart, onTouchEnd) {
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                onTouchStart(true);
+            });
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                onTouchEnd(false);
+            });
+            btn.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                onTouchEnd(false);
+            });
+            btn.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                onTouchStart(true);
+            });
+            btn.addEventListener('mouseup', () => onTouchEnd(false));
+        }
+        
+        function setUpTouchControls() {
+            attachTouchButton(touchUpBtn, (active) => { touchUpActive = active; }, (active) => { touchUpActive = active; });
+            attachTouchButton(touchDownBtn, (active) => { touchDownActive = active; }, (active) => { touchDownActive = active; });
+        }
+        
+        // Cambio de modo: táctil vs ratón
+        function setTouchMode(enabled) {
+            touchMode = enabled;
+            if(touchMode) {
+                touchControlsDiv.classList.add('visible');
+                // desactivar mouse move en canvas
+                canvas.removeEventListener('mousemove', handleMouseMove);
+                // opcional: mostrar cursor normal en canvas
+                canvas.style.cursor = 'default';
+            } else {
+                touchControlsDiv.classList.remove('visible');
+                canvas.addEventListener('mousemove', handleMouseMove);
+                canvas.style.cursor = 'none';
+                // resetear flags táctiles
+                touchUpActive = false;
+                touchDownActive = false;
+            }
+        }
+        
+        // toggle manual por botón
+        function toggleMode() {
+            setTouchMode(!touchMode);
+            toggleTouchBtn.innerText = touchMode ? "🖱️ MODO RATÓN" : "📱 MODO TÁCTIL";
+        }
+        
+        // Pausa manual
+        function togglePause() {
+            isPaused = !isPaused;
+            pauseMessageDiv.style.display = isPaused ? 'flex' : 'none';
+            if(!isPaused && waitingForServe === false) {
+                // nada extra, solo reanudar
+            }
+        }
+        
+        // Reinicio con manejo de pausa
+        function resetGame() {
+            if(serveTimeout) clearTimeout(serveTimeout);
+            waitingForServe = false;
+            isPaused = false;
+            pauseMessageDiv.style.display = 'none';
+            fullResetGame();
+            collisionCooldown = false;
+        }
+        
+        // ---------- INICIALIZACIÓN Y DETECCIÓN AUTOMÁTICA ----------
+        function init() {
+            fullResetGame();
+            // Detección automática: si es táctil activamos modo táctil por defecto
+            if(isTouchDevice) {
+                setTouchMode(true);
+                toggleTouchBtn.innerText = "🖱️ MODO RATÓN";
+            } else {
+                setTouchMode(false);
+                toggleTouchBtn.innerText = "📱 MODO TÁCTIL";
+                canvas.addEventListener('mousemove', handleMouseMove);
+                canvas.style.cursor = 'none';
+            }
+            setUpTouchControls();
+            
+            // Eventos botones adicionales
+            resetBtn.addEventListener('click', resetGame);
+            pauseGameBtn.addEventListener('click', togglePause);
+            toggleTouchBtn.addEventListener('click', toggleMode);
+            
+            // Evitar que el canvas capture eventos táctiles de scroll en móvil
+            canvas.addEventListener('touchstart', (e) => e.preventDefault());
+            canvas.addEventListener('touchmove', (e) => e.preventDefault());
+            
+            // inicio del juego
+            gameLoop();
+        }
+        
+        init();
+    })();
+</script>
+</body>
+</html>
